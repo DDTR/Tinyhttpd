@@ -54,7 +54,7 @@ void unimplemented(int);
 /**********************************************************************/
 void accept_request(void *arg)
 {
-    int client = (intptr_t)arg;
+    int client = (intptr_t)arg; // 指针类型，64位 ： long int, 32位 ： int
     char buf[1024];
     size_t numchars;
     char method[255];
