@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define ISspace(x) isspace((int)(x))
+#define ISspace(x) isspace((int)(x))    // 判断是否为空白符号
 
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 #define STDIN   0
@@ -75,7 +75,7 @@ void accept_request(void *arg)
     }
     j=i;
     method[i] = '\0';
-
+    // 忽略大小比较
     if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))
     {
         unimplemented(client);
@@ -112,6 +112,8 @@ void accept_request(void *arg)
     if (path[strlen(path) - 1] == '/')
         strcat(path, "index.html");
     if (stat(path, &st) == -1) {
+        // 获取index.html文件不成功
+        // not found
         while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
             numchars = get_line(client, buf, sizeof(buf));
         not_found(client);
@@ -119,14 +121,18 @@ void accept_request(void *arg)
     else
     {
         if ((st.st_mode & S_IFMT) == S_IFDIR)
+            // 取地址
             strcat(path, "/index.html");
         if ((st.st_mode & S_IXUSR) ||
                 (st.st_mode & S_IXGRP) ||
                 (st.st_mode & S_IXOTH)    )
+            // 可执行权限
             cgi = 1;
         if (!cgi)
+            // cgi不能执行
             serve_file(client, path);
         else
+            // 执行cgi脚本
             execute_cgi(client, path, method, query_string);
     }
 
@@ -162,7 +168,7 @@ void bad_request(int client)
 /**********************************************************************/
 void cat(int client, FILE *resource)
 {
-    char buf[1024];
+    char buf[1024]; // 一次传1024个字节
 
     fgets(buf, sizeof(buf), resource);
     while (!feof(resource))
@@ -222,6 +228,7 @@ void execute_cgi(int client, const char *path,
 
     buf[0] = 'A'; buf[1] = '\0';
     if (strcasecmp(method, "GET") == 0)
+        // Get操作
         while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
             numchars = get_line(client, buf, sizeof(buf));
     else if (strcasecmp(method, "POST") == 0) /*POST*/
@@ -235,12 +242,14 @@ void execute_cgi(int client, const char *path,
             numchars = get_line(client, buf, sizeof(buf));
         }
         if (content_length == -1) {
+            // 非法Post
             bad_request(client);
             return;
         }
     }
     else/*HEAD or other*/
     {
+        // 目前只有Get和Post两种请求
     }
 
 
@@ -254,9 +263,12 @@ void execute_cgi(int client, const char *path,
     }
 
     if ( (pid = fork()) < 0 ) {
+        // fork失败
+        // 必须在fork()中调用pipe(), 否则子进程不会继承文件描述符
         cannot_execute(client);
         return;
     }
+    // 执行cgi脚本
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     send(client, buf, strlen(buf), 0);
     if (pid == 0)  /* child: CGI script */
@@ -270,7 +282,7 @@ void execute_cgi(int client, const char *path,
         close(cgi_output[0]);
         close(cgi_input[1]);
         sprintf(meth_env, "REQUEST_METHOD=%s", method);
-        putenv(meth_env);
+        putenv(meth_env); // 设置环境变量REQIEST_METHOD
         if (strcasecmp(method, "GET") == 0) {
             sprintf(query_env, "QUERY_STRING=%s", query_string);
             putenv(query_env);
@@ -279,13 +291,14 @@ void execute_cgi(int client, const char *path,
             sprintf(length_env, "CONTENT_LENGTH=%d", content_length);
             putenv(length_env);
         }
-        execl(path, NULL);
+        execl(path, NULL);  // 执行path对应的文件
         exit(0);
     } else {    /* parent */
         close(cgi_output[1]);
         close(cgi_input[0]);
         if (strcasecmp(method, "POST") == 0)
             for (i = 0; i < content_length; i++) {
+                // 接收一个字符
                 recv(client, &c, 1, 0);
                 write(cgi_input[1], &c, 1);
             }
@@ -325,6 +338,7 @@ int get_line(int sock, char *buf, int size)
         {
             if (c == '\r')
             {
+                // 读取不移除
                 n = recv(sock, &c, 1, MSG_PEEK);
                 /* DEBUG printf("%02X\n", c); */
                 if ((n > 0) && (c == '\n'))
@@ -336,6 +350,7 @@ int get_line(int sock, char *buf, int size)
             i++;
         }
         else
+            // n = -1 receive失败
             c = '\n';
     }
     buf[i] = '\0';
